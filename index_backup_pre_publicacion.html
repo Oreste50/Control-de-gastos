@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Control de gastos Santi</title>
+<style>
+:root{font-family:Arial,sans-serif;color:#20242a;background:#f4f5f7}
+*{box-sizing:border-box}body{margin:0}
+header{background:#20262d;color:#fff;padding:20px}
+header h1{margin:0;font-size:24px}header p{margin:6px 0 0;color:#cbd1d8}
+main{max-width:1050px;margin:20px auto;padding:0 14px}
+.card{background:#fff;border-radius:14px;padding:18px;box-shadow:0 2px 8px #00000012;margin-bottom:16px}
+.balance,.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.box,.stat{border:1px solid #e0e3e6;border-radius:10px;padding:14px;background:#fafbfc}
+.box.main{background:#e9eef3}.box small,.stat small{display:block;color:#69717b;font-size:13px;margin-bottom:6px}
+.big{font-size:27px;font-weight:700}.stat strong{font-size:19px}
+h2{font-size:18px;margin:0 0 14px}
+.formgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+label{font-size:13px;color:#555;display:block;margin-bottom:5px}
+input,select{width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px;font-size:15px}
+button{cursor:pointer}.primary{width:100%;padding:11px;border:0;border-radius:8px;background:#20262d;color:#fff;font-size:15px;margin-top:12px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.tabs button,.toggle{padding:10px 13px;border:1px solid #d6dbe0;border-radius:9px;background:#fff}
+.tabs button.active{background:#20262d;color:#fff}
+.week-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.week-card{border:1px solid #ddd;border-radius:10px;padding:12px;background:#fafafa}
+.week-card.current{border:2px solid #20262d;background:#f1f3f5}
+.week-card h3{margin:0 0 7px;font-size:15px}
+.week-card p{margin:4px 0;font-size:13px;color:#606873}
+.week-card strong{font-size:18px}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:9px;border-bottom:1px solid #eee;font-size:14px}
+.num{text-align:right}.action{padding:5px 8px;border:1px solid #ddd;border-radius:7px;background:#fff}
+.message{min-height:18px;margin-top:7px;font-size:13px;color:#606873}
+.fixed-panel{display:none;margin-top:14px;padding-top:14px;border-top:1px solid #eee}.fixed-panel.open{display:block}
+.note{font-size:13px;color:#6b7280;margin-top:8px}
+@media(max-width:800px){.week-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:650px){.balance,.stats,.formgrid{grid-template-columns:1fr}.week-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+<h1>Control de gastos Santi</h1>
+<p>Semana: viernes → jueves · Los gastos quedan guardados</p>
+</header>
+
+<main>
+<section class="card">
+<div class="balance">
+<div class="box"><small>Saldo mensual</small><div class="big" id="monthlyDisplay">990,00 €</div></div>
+<div class="box"><small>Gastos fijos</small><div class="big" id="fixedDisplay">0,00 €</div></div>
+<div class="box main"><small>Disponible para administrar</small><div class="big" id="availableDisplay">990,00 €</div></div>
+</div>
+</section>
+
+<section class="card">
+<h2>Configuración</h2>
+<div class="formgrid">
+<div><label for="monthly">Saldo mensual (€)</label><input id="monthly" type="number" min="0" step="0.01" value="990"></div>
+<div><label for="weekly">Presupuesto semanal (€)</label><input id="weekly" type="number" min="0" step="0.01" placeholder="Opcional"></div>
+</div>
+<div class="message" id="configMsg"></div>
+</section>
+
+<section class="card">
+<button class="toggle" id="fixedToggle" type="button">▸ Ver gastos fijos</button>
+<div class="fixed-panel" id="fixedPanel">
+<h2>Gastos fijos</h2>
+<table><thead><tr><th>Concepto</th><th class="num">Importe</th><th>Pagado</th></tr></thead>
+<tbody id="fixedRows"></tbody></table>
+<div class="note">Los gastos fijos se descuentan del saldo disponible.</div>
+</div>
+</section>
+
+<section class="card">
+<h2>Semana actual</h2>
+<div class="stats">
+<div class="stat"><small>Semana</small><strong id="currentWeekLabel">21/08 → 27/08</strong></div>
+<div class="stat"><small>Gastado</small><strong id="currentWeekSpent">0,00 €</strong></div>
+<div class="stat"><small>Queda</small><strong id="currentWeekLeft">0,00 €</strong></div>
+</div>
+</section>
+
+<section class="card">
+<h2>Semanas del mes</h2>
+<div class="week-grid" id="weekGrid"></div>
+<div class="note">Las semanas anteriores quedan guardadas. Cada semana va de viernes a jueves.</div>
+</section>
+
+<section class="card">
+<div class="tabs">
+<button class="active" data-period="current" type="button">Semana actual</button>
+<button data-period="month" type="button">Mes</button>
+</div>
+<h2 id="movementTitle">Gastos de la semana actual</h2>
+<div style="overflow-x:auto">
+<table><thead><tr><th>Fecha</th><th>Categoría</th><th>Descripción</th><th class="num">Importe</th><th></th></tr></thead>
+<tbody id="expenseRows"></tbody></table>
+</div>
+</section>
+
+<section class="card">
+<h2>Añadir gasto</h2>
+<div class="formgrid">
+<div><label for="date">Fecha</label><input id="date" type="date"></div>
+<div><label for="amount">Importe (€)</label><input id="amount" type="number" min="0" step="0.01" placeholder="0,00"></div>
+<div><label for="category">Categoría</label>
+<select id="category"><option>Alimentación</option><option>Transporte</option><option>Ocio</option><option>Compras</option><option>Otros</option></select></div>
+<div><label for="description">Descripción</label><input id="description" type="text" placeholder="Ej.: supermercado"></div>
+</div>
+<button class="primary" id="addExpense" type="button">Añadir gasto</button>
+<div class="message" id="expenseMsg" aria-live="polite"></div>
+</section>
+
+<section class="card">
+<h2>Resumen</h2>
+<div class="stats">
+<div class="stat"><small>Disponible inicial</small><strong id="summaryAvailable">990,00 €</strong></div>
+<div class="stat"><small>Gastado</small><strong id="summarySpent">0,00 €</strong></div>
+<div class="stat"><small>Saldo restante</small><strong id="summaryRemaining">990,00 €</strong></div>
+</div>
+</section>
+
+<section class="card"><h2>Copia de seguridad</h2><p class="note">Guarda una copia de todos tus datos antes de cualquier cambio.</p><div class="formgrid"><button class="primary" id="exportData" type="button">Guardar copia</button><button class="primary" id="importData" type="button">Restaurar copia</button></div><input id="importFile" type="file" accept="application/json" style="display:none"><div class="message" id="backupMsg"></div></section>
+</main>
+
+<script>
+(()=>{
+const KEY="gestionGastosSantiFinal";
+const defaults={
+ monthly:990,weekly:null,
+ fixed:[
+  {name:"Teléfono",amount:0,paid:false},{name:"Luz",amount:0,paid:false},
+  {name:"Seguro",amount:0,paid:false},{name:"Gym",amount:0,paid:false},
+  {name:"Farmacia",amount:0,paid:false},{name:"Veterinario",amount:0,paid:false}
+ ],
+ expenses:[]
+};
+let state=load(), period="current";
+const $=id=>document.getElementById(id);
+const money=n=>new Intl.NumberFormat("es-ES",{style:"currency",currency:"EUR"}).format(Number.isFinite(n)?n:0);
+const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`};
+const parseDate=s=>{const [y,m,d]=s.split("-").map(Number);return new Date(Date.UTC(y,m-1,d))};
+const key=d=>`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`;
+const fridayStart=()=>{
+ let d=parseDate(today()), day=d.getUTCDay();
+ const diff=(day===5)?0:(day===6?1:day+2);
+ d.setUTCDate(d.getUTCDate()-diff); return d;
+};
+const save=()=>localStorage.setItem(KEY,JSON.stringify(state));
+function load(){try{const raw=JSON.parse(localStorage.getItem(KEY));if(raw)return {...defaults,...raw,fixed:Array.isArray(raw.fixed)?raw.fixed:defaults.fixed,expenses:Array.isArray(raw.expenses)?raw.expenses:[]};}catch(e){}return JSON.parse(JSON.stringify(defaults))}
+function fixedTotal(){return state.fixed.reduce((s,x)=>s+(Number(x.amount)||0),0)}
+function weekRange(d){
+ const s=new Date(d),e=new Date(d);e.setUTCDate(e.getUTCDate()+6);
+ return {start:s,end:e};
+}
+function weeksOfMonth(){
+ const now=parseDate(today()), y=now.getUTCFullYear(),m=now.getUTCMonth();
+ const first=new Date(Date.UTC(y,m,1)), last=new Date(Date.UTC(y,m+1,0));
+ let s=new Date(first),day=s.getUTCDay(),diff=(day===5)?0:(day===6?1:day+2);
+ s.setUTCDate(s.getUTCDate()-diff);
+ const arr=[];
+ while(s<=last){
+   const r=weekRange(s); arr.push(r);
+   s=new Date(r.end);s.setUTCDate(s.getUTCDate()+1);
+ }
+ return arr;
+}
+function weekSpent(r){
+ const a=key(r.start),b=key(r.end);
+ return state.expenses.filter(x=>x.date>=a&&x.date<=b).reduce((s,x)=>s+x.amount,0);
+}
+function monthTotal(){
+ const n=parseDate(today());
+ return state.expenses.filter(x=>{const d=parseDate(x.date);return d.getUTCMonth()===n.getUTCMonth()&&d.getUTCFullYear()===n.getUTCFullYear()}).reduce((s,x)=>s+x.amount,0);
+}
+function renderFixed(){
+ $("fixedRows").innerHTML=state.fixed.map((x,i)=>`<tr><td>${x.name}</td><td class="num"><input data-fixed-amount="${i}" type="number" min="0" step="0.01" value="${Number(x.amount)||0}" style="max-width:130px"></td><td><label><input data-fixed-paid="${i}" type="checkbox" ${x.paid?"checked":""}> pagado</label></td></tr>`).join("");
+}
+function renderWeeks(){
+ const weeks=weeksOfMonth(), monthly=Number(state.monthly)||0,available=Math.max(0,monthly-fixedTotal());
+ const weekly=state.weekly===null?(weeks.length?available/weeks.length:0):Number(state.weekly)||0;
+ const current=fridayStart();
+ $("weekGrid").innerHTML=weeks.map((r,i)=>{
+   const spent=weekSpent(r),left=Math.max(0,weekly-spent);
+   const cur=key(r.start)===key(current);
+   const label=`${String(r.start.getUTCDate()).padStart(2,"0")}/${String(r.start.getUTCMonth()+1).padStart(2,"0")} → ${String(r.end.getUTCDate()).padStart(2,"0")}/${String(r.end.getUTCMonth()+1).padStart(2,"0")}`;
+   return `<div class="week-card ${cur?"current":""}"><h3>Semana ${i+1}</h3><p>${label}</p><strong>Gastado: ${money(spent)}</strong><p>Queda: ${money(left)}</p></div>`;
+ }).join("");
+ const r=weekRange(current),spent=weekSpent(r);
+ $("currentWeekLabel").textContent=`${String(r.start.getUTCDate()).padStart(2,"0")}/${String(r.start.getUTCMonth()+1).padStart(2,"0")} → ${String(r.end.getUTCDate()).padStart(2,"0")}/${String(r.end.getUTCMonth()+1).padStart(2,"0")}`;
+ $("currentWeekSpent").textContent=money(spent);
+ $("currentWeekLeft").textContent=money(Math.max(0,weekly-spent));
+}
+function filtered(){
+ if(period==="month"){const n=parseDate(today());return state.expenses.filter(x=>{const d=parseDate(x.date);return d.getUTCMonth()===n.getUTCMonth()&&d.getUTCFullYear()===n.getUTCFullYear()})}
+ const r=weekRange(fridayStart()),a=key(r.start),b=key(r.end);
+ return state.expenses.filter(x=>x.date>=a&&x.date<=b);
+}
+function render(){
+ const monthly=Number(state.monthly)||0,fixed=fixedTotal(),available=Math.max(0,monthly-fixed);
+ $("monthlyDisplay").textContent=money(monthly);$("fixedDisplay").textContent=money(fixed);$("availableDisplay").textContent=money(available);
+ $("summaryAvailable").textContent=money(available);
+ const spent=monthTotal();$("summarySpent").textContent=money(spent);$("summaryRemaining").textContent=money(Math.max(0,available-spent));
+ $("weekly").value=state.weekly===null?"":state.weekly;
+ renderFixed();renderWeeks();
+ const list=filtered().sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id);
+ $("movementTitle").textContent=period==="month"?"Gastos del mes":"Gastos de la semana actual";
+ $("expenseRows").innerHTML=list.length?list.map(x=>`<tr><td>${x.date.split("-").reverse().join("/")}</td><td>${x.category}</td><td>${x.description||"—"}</td><td class="num">${money(x.amount)}</td><td><button class="action" data-delete="${x.id}">Eliminar</button></td></tr>`).join(""):'<tr><td colspan="5">No hay gastos registrados.</td></tr>';
+}
+$("monthly").addEventListener("input",e=>{const n=parseFloat(e.target.value);state.monthly=Number.isFinite(n)&&n>=0?n:0;save();render()});
+$("weekly").addEventListener("input",e=>{const v=e.target.value.trim();state.weekly=v===""?null:Math.max(0,parseFloat(v)||0);save();render()});
+$("date").value=today();
+$("addExpense").addEventListener("click",()=>{
+ const amount=parseFloat($("amount").value),date=$("date").value||today();
+ if(!Number.isFinite(amount)||amount<=0){$("expenseMsg").textContent="Introduce un importe válido.";return}
+ state.expenses.push({id:Date.now(),amount,date,category:$("category").value,description:$("description").value.trim()});
+ save();$("amount").value="";$("description").value="";$("expenseMsg").textContent="Gasto guardado.";render();
+});
+document.querySelectorAll(".tabs button").forEach(btn=>btn.addEventListener("click",()=>{
+ period=btn.dataset.period;document.querySelectorAll(".tabs button").forEach(x=>x.classList.remove("active"));btn.classList.add("active");render();
+}));
+$("fixedToggle").addEventListener("click",()=>{const p=$("fixedPanel");p.classList.toggle("open");$("fixedToggle").textContent=p.classList.contains("open")?"▾ Ocultar gastos fijos":"▸ Ver gastos fijos"});
+$("fixedRows").addEventListener("input",e=>{const i=e.target.dataset.fixedAmount;if(i===undefined)return;state.fixed[i].amount=Math.max(0,parseFloat(e.target.value)||0);save();render()});
+$("fixedRows").addEventListener("change",e=>{const i=e.target.dataset.fixedPaid;if(i===undefined)return;state.fixed[i].paid=e.target.checked;save();render()});
+$("expenseRows").addEventListener("click",e=>{const id=e.target.dataset.delete;if(!id)return;state.expenses=state.expenses.filter(x=>String(x.id)!==id);save();render()});
+  $("exportData").addEventListener("click",()=>{const blob=new Blob([JSON.stringify({app:"Control de gastos Santi",version:1,data:state},null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="copia-control-gastos-santi.json";a.click();$("backupMsg").textContent="Copia guardada.";});
+  $("importData").addEventListener("click",()=>$("importFile").click());
+  $("importFile").addEventListener("change",e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const p=JSON.parse(r.result),d=p.data||p;if(!Array.isArray(d.expenses)||!Array.isArray(d.fixed))throw 0;state={...defaults,...d};save();render();$("backupMsg").textContent="Copia restaurada correctamente."}catch{$("backupMsg").textContent="La copia no es válida."}};r.readAsText(f);});
+
+render();
+})();
+</script>
+</body>
+</html>
